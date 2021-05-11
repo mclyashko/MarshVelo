@@ -6,6 +6,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
@@ -50,7 +51,9 @@ public class TrackingFragment extends Fragment implements  EasyPermissions.Permi
     private MapView mapView;
     private Button btnToggleRide;
     private Button btnFinishRun;
+    private TextView tvTimer;
 
+    private long currentTimeInMillis= 0;
     private static boolean isTracking = false;
     private static ArrayList<ArrayList<LatLng>> pathPoints = new ArrayList<>();
 
@@ -75,6 +78,7 @@ public class TrackingFragment extends Fragment implements  EasyPermissions.Permi
 
         btnToggleRide = getView().findViewById(R.id.btnToggleRun);
         btnFinishRun = getView().findViewById(R.id.btnFinishRun);
+        tvTimer = getView().findViewById(R.id.tvTimer);
 
         // Request permissions from user
         requestPermission();
@@ -105,6 +109,13 @@ public class TrackingFragment extends Fragment implements  EasyPermissions.Permi
                 pathPoints = arrayLists;
                 addLatestPolyline();
                 moveCameraToUser();
+            }
+        });
+        TrackingService.timeRideInMillis.observe(getViewLifecycleOwner(), new Observer<Long>() {
+            @Override
+            public void onChanged(Long aLong) {
+                currentTimeInMillis = aLong;
+                tvTimer.setText(TrackingUtility.getFormattedStopWath(aLong, true));
             }
         });
     }

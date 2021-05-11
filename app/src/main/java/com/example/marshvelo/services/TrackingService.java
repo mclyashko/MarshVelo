@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.location.Location;
 import android.os.Build;
+import android.os.Handler;
 import android.os.Looper;
 
 import androidx.annotation.NonNull;
@@ -57,13 +58,14 @@ public class TrackingService extends LifecycleService {
     public static MutableLiveData<ArrayList<ArrayList<LatLng>>> pathPoints = new MutableLiveData<>();
     private FusedLocationProviderClient fusedLocationProviderClient;
 
-
     private void postInitialValues() {
         Timber.d("TRACKING_SERVICE: Tracking LiveData initialized");
+        timeRideInMillis.postValue(0L);
         isTracking.postValue(false);
         pathPoints.setValue(new ArrayList<>());
         pathPoints.postValue(pathPoints.getValue());
     }
+
 
     @Override
     public void onCreate() {
@@ -80,18 +82,38 @@ public class TrackingService extends LifecycleService {
     }
 
     private boolean isTimerEnabled = false;
-    private long lapTime = 0;
-    private long timeRide = 0;
+    private long pauseStartTimeInMillis = 0;
+    private long pauseStopTimeInMillis = 0;
+    private long timePauseInMillis = 0;
     private long timeStarted = 0;
-    private long lastSecondTimestamp = 0;
+    Handler timerHandler = new Handler();
+    Runnable timerRunnable = new Runnable() {
+        @Override
+        public void run() {
+            timeRideInMillis.postValue(System.currentTimeMillis() - timeStarted - timePauseInMillis);
+            // timeRideInSeconds.postValue(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - timeStarted));
+            timerHandler.postDelayed(this, 10);
+        }
+    };
 
     private void startTimer() {
-        isTracking.postValue(true);
-        timeStarted = System.currentTimeMillis();
+        Timber.e("TRACKING SERVICE: timer started");
+        pauseStopTimeInMillis = System.currentTimeMillis();
+        if (pauseStartTimeInMillis == 0) {
+            timePauseInMillis = 0;
+        } else {
+            timePauseInMillis += pauseStopTimeInMillis - pauseStartTimeInMillis;
+        }
+        if (timeStarted == 0) {
+            timeStarted = System.currentTimeMillis();
+        }
+        timerHandler.postDelayed(timerRunnable, 0);
         isTimerEnabled = true;
     }
 
     private void pauseService() {
+        pauseStartTimeInMillis = System.currentTimeMillis();
+        timerHandler.removeCallbacks(timerRunnable);
         isTracking.postValue(false);
     }
 
@@ -100,7 +122,6 @@ public class TrackingService extends LifecycleService {
         switch (intent.getAction()) {
             case ACTION_START_OR_RESUME_SERVICE:
                 if (isFirstRun) {
-                    startTimer();
                     startForegroundService();
                     isFirstRun = false;
                     Timber.d("TRACKING_SERVICE: Start TrackingService");
@@ -162,6 +183,7 @@ public class TrackingService extends LifecycleService {
                 Timber.d("TRACKING_SERVICE: Location Tracking is updated");
             }
         } else  {
+            Timber.d("TRACKING_SERVICE: Location Tracking remote");
             fusedLocationProviderClient.removeLocationUpdates(locationCallback());
         }
     }
@@ -172,10 +194,25 @@ public class TrackingService extends LifecycleService {
             public void onLocationResult(@NonNull LocationResult locationResult) {
                 super.onLocationResult(locationResult);
                 if (isTracking.getValue()) {
+                    Timber.e("TRACKING_SERVICE: NEW LOVATION AGAIN WTF");
                     List<Location> locations = locationResult.getLocations();
-                    for (Location location: locations) {
-                        addPathPoint(location);
-                        Timber.d("TRACKING_SERVICE: NEW LOCATION: " + location.getLatitude() + ", " + location.getLongitude());
+                    if (locations != null && !locations.isEmpty()) {
+                        ArrayList polylines = (ArrayList) pathPoints.getValue();
+                        if (pathPoints != null && !polylines.isEmpty()) {
+                            ArrayList polyline = (ArrayList) polylines.get(polylines.size() - 1);
+                            if (!polyline.isEmpty()) {
+                                LatLng lastLatLng = (LatLng) polyline.get(polyline.size() - 1);
+                                Location location = locations.get(locations.size() - 1);
+                                if (location.getLongitude() != lastLatLng.longitude || location.getLatitude() != lastLatLng.latitude) {
+                                    addPathPoint(locations.get(locations.size() - 1));
+                                    Timber.d("TRACKING_SERVICE: NEW LOCATION: " + locations.get(locations.size() - 1).getLatitude() + ", " + locations.get(locations.size() - 1).getLongitude());
+                                }
+                            } else {
+                                addPathPoint(locations.get(locations.size() - 1));
+                            }
+                        } else if (polylines.isEmpty()){
+                            addPathPoint(locations.get(locations.size() - 1));
+                        }
                     }
                 }
             }
@@ -192,22 +229,22 @@ public class TrackingService extends LifecycleService {
         Timber.d("TRACKING_SERVICE: Starting foreground Service");
         addEmptyPolyline();
         isTracking.postValue(true);
+        startTimer();
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             createNotificationChannel(notificationManager);
         }
+
         NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
                 .setAutoCancel(false) // Notification always active
                 .setOngoing(true) // Notification can't be swiped away
                 .setSmallIcon(R.drawable.bike)
-                .setContentTitle("Running App")
-                .setContentText("00:00:00")
+                .setContentTitle("MarshVelo")
+                .setContentText("You are riding now!")
                 .setContentIntent(getMainActivityPendingIntent());
         startForeground(NOTIFICATION_ID, notificationBuilder.build());
     }
-
-    // Notification functions
 
     private PendingIntent getMainActivityPendingIntent() {
         Intent intent  = new Intent(this, MainActivity.class);
