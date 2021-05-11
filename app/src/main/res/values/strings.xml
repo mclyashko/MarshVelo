@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">MarshVelo</string>
+    <string name="google_maps_key">AIzaSyAfYFAR53jtkMq6VdnqkAgwj4yxkGO1p3k</string>
+    <string-array name="filter_options">
+        <item>Date</item>
+        <item>Running Time</item>
+        <item>Distance</item>
+        <item>Average Speed</item>
+        <item>Calories Burned</item>
+    </string-array>
+
+    <string name="ride">ride</string>
+    <string name="stats">stats</string>
+    <string name="share">share</string>
+    <string name="listen">listen</string>
+    <string name="list">list</string>
+    <string name="status">Status</string>
+
+</resources>

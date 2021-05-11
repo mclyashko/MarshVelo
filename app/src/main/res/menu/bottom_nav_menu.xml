@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/fragment_tracking"
+        android:enabled="true"
+        android:icon="@drawable/bike"
+        android:title="@string/ride"/>
+    <item
+        android:id="@+id/fragment_statistics"
+        android:enabled="true"
+        android:icon="@drawable/plot"
+        android:title="@string/stats"/>
+    <item
+        android:id="@+id/fragment_bluetooth"
+        android:enabled="true"
+        android:icon="@drawable/bluetooth"
+        android:title="@string/share"/>
+</menu>
