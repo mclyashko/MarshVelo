@@ -1,4 +1,4 @@
-# MarshVeloPresentation
+# MarshVelo Java android application
 
 ## Description
 
