@@ -12,11 +12,11 @@ import java.util.List;
 @Dao
 public interface RideDAO {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    void insertRide(com.example.marshvelo.database.Ride ride);
+    void insertRide(Ride ride);
 
     @Delete
-    void deleteRide(com.example.marshvelo.database.Ride ride);
+    void deleteRide(Ride ride);
 
     @Query("SELECT * FROM riding_table ORDER BY timestamp DESC")
-    LiveData<List<com.example.marshvelo.database.Ride>> getAllRidesSortedByDate();
+    LiveData<List<Ride>> getAllRidesSortedByDate();
 }

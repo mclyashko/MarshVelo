@@ -1,11 +1,13 @@
 package com.example.marshvelo.services;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Build;
 import android.os.Handler;
@@ -14,6 +16,7 @@ import android.os.Looper;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
+import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Observer;
@@ -49,10 +52,11 @@ import java.util.List;
 
 public class TrackingService extends LifecycleService {
 
-    private static boolean isFirstRun = true;
+    private static boolean isFirstRide = true;
 
     private static MutableLiveData<Long> timeRideInSeconds = new MutableLiveData<>();
 
+    public static MutableLiveData<Boolean> serviceKilled = new MutableLiveData<>();
     public static MutableLiveData<Long> timeRideInMillis = new MutableLiveData<>();
     public static MutableLiveData<Boolean> isTracking = new MutableLiveData<>();
     public static MutableLiveData<ArrayList<ArrayList<LatLng>>> pathPoints = new MutableLiveData<>();
@@ -60,6 +64,7 @@ public class TrackingService extends LifecycleService {
 
     private void postInitialValues() {
         Timber.d("TRACKING_SERVICE: Tracking LiveData initialized");
+        serviceKilled.postValue(true);
         timeRideInMillis.postValue(0L);
         isTracking.postValue(false);
         pathPoints.setValue(new ArrayList<>());
@@ -81,7 +86,6 @@ public class TrackingService extends LifecycleService {
         });
     }
 
-    private boolean isTimerEnabled = false;
     private long pauseStartTimeInMillis = 0;
     private long pauseStopTimeInMillis = 0;
     private long timePauseInMillis = 0;
@@ -91,7 +95,6 @@ public class TrackingService extends LifecycleService {
         @Override
         public void run() {
             timeRideInMillis.postValue(System.currentTimeMillis() - timeStarted - timePauseInMillis);
-            // timeRideInSeconds.postValue(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - timeStarted));
             timerHandler.postDelayed(this, 10);
         }
     };
@@ -108,7 +111,6 @@ public class TrackingService extends LifecycleService {
             timeStarted = System.currentTimeMillis();
         }
         timerHandler.postDelayed(timerRunnable, 0);
-        isTimerEnabled = true;
     }
 
     private void pauseService() {
@@ -117,13 +119,23 @@ public class TrackingService extends LifecycleService {
         isTracking.postValue(false);
     }
 
+    private void killService() {
+        serviceKilled.postValue(true);
+        isFirstRide = true;
+        pauseService();
+        postInitialValues();
+        stopForeground(true);
+        stopSelf();
+    }
+
     @Override
     public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
         switch (intent.getAction()) {
             case ACTION_START_OR_RESUME_SERVICE:
-                if (isFirstRun) {
+                if (isFirstRide) {
+                    serviceKilled.postValue(false);
                     startForegroundService();
-                    isFirstRun = false;
+                    isFirstRide = false;
                     Timber.d("TRACKING_SERVICE: Start TrackingService");
                 } else {
                     startForegroundService();
@@ -135,6 +147,7 @@ public class TrackingService extends LifecycleService {
                 Timber.d("TRACKING_SERVICE: ACTION_PAUSE_SERVICE");
                 break;
             case ACTION_STOP_SERVICE:
+                killService();
                 Timber.d("TRACKING_SERVICE: ACTION_STOP_SERVICE");
                 break;
         }
@@ -143,7 +156,7 @@ public class TrackingService extends LifecycleService {
     }
 
     private void addEmptyPolyline() {
-        ArrayList polylines =  pathPoints.getValue();
+        ArrayList polylines = pathPoints.getValue();
         if (polylines != null) {
             polylines.add(new ArrayList<>());
             pathPoints.postValue(polylines);
@@ -165,23 +178,31 @@ public class TrackingService extends LifecycleService {
         }
     }
 
-    @SuppressLint("MissingPermission")
+
     private void updateLocationTracking(boolean isTracking) {
         Timber.d("TRACKING_SERVICE: trying to update Location Tracking");
         if (isTracking) {
-            if (TrackingUtility.hasLocationPermissions(this)) {
-                LocationRequest request = new LocationRequest();
-                request.setInterval(LOCATION_UPDATE_INTERVAL);
-                request.setFastestInterval(FASTEST_LOCATION_INTERVAL);
-                request.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+            LocationRequest request = new LocationRequest();
+            request.setInterval(LOCATION_UPDATE_INTERVAL);
+            request.setFastestInterval(FASTEST_LOCATION_INTERVAL);
+            request.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
-                fusedLocationProviderClient.requestLocationUpdates(
-                        request,
-                        locationCallback(),
-                        Looper.getMainLooper()
-                );
-                Timber.d("TRACKING_SERVICE: Location Tracking is updated");
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                // TODO: Consider calling
+                //    ActivityCompat#requestPermissions
+                // here to request the missing permissions, and then overriding
+                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                //                                          int[] grantResults)
+                // to handle the case where the user grants the permission. See the documentation
+                // for ActivityCompat#requestPermissions for more details.
+                return;
             }
+            fusedLocationProviderClient.requestLocationUpdates(
+                    request,
+                    locationCallback(),
+                    Looper.getMainLooper()
+            );
+            Timber.d("TRACKING_SERVICE: Location Tracking is updated");
         } else  {
             Timber.d("TRACKING_SERVICE: Location Tracking remote");
             fusedLocationProviderClient.removeLocationUpdates(locationCallback());
@@ -193,6 +214,7 @@ public class TrackingService extends LifecycleService {
             @Override
             public void onLocationResult(@NonNull LocationResult locationResult) {
                 super.onLocationResult(locationResult);
+                Timber.e("WWWWWWWWWWWWW");
                 if (isTracking.getValue()) {
                     Timber.e("TRACKING_SERVICE: NEW LOVATION AGAIN WTF");
                     List<Location> locations = locationResult.getLocations();
@@ -232,7 +254,7 @@ public class TrackingService extends LifecycleService {
         startTimer();
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             createNotificationChannel(notificationManager);
         }
 
@@ -245,6 +267,7 @@ public class TrackingService extends LifecycleService {
                 .setContentIntent(getMainActivityPendingIntent());
         startForeground(NOTIFICATION_ID, notificationBuilder.build());
     }
+
 
     private PendingIntent getMainActivityPendingIntent() {
         Intent intent  = new Intent(this, MainActivity.class);

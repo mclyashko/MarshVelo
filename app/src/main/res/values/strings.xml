@@ -1,6 +1,5 @@
 <resources>
     <string name="app_name">MarshVelo</string>
-    <string name="google_maps_key">AIzaSyAfYFAR53jtkMq6VdnqkAgwj4yxkGO1p3k</string>
     <string-array name="filter_options">
         <item>Date</item>
         <item>Running Time</item>
