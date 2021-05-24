@@ -7,6 +7,7 @@ import timber.log.Timber;
 
 @HiltAndroidApp
 public class BaseApplication extends Application {
+
     @Override
     public void onCreate()
     {
